@@ -108,7 +108,7 @@ class RabbitMQ():
       )
 
       self.connection = pika.BlockingConnection(params)
-      self._channel = self._connection.channel()
+      self._channel = self.connection.channel()
     except pika.exceptions.AMQPConnectionError as e:
       print(f"Error: {e}")
       raise e
@@ -290,8 +290,8 @@ class RabbitMQ():
 
   def close(self):
     try:
-        if self._connection and not self._connection.is_closed:
-            self._connection.close()
+        if self.connection and not self.connection.is_closed:
+            self.connection.close()
             self.logger.info("Connection closed successfully")
     except Exception as e:
         print(f"Error: {e}")
