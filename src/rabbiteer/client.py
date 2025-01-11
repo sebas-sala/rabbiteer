@@ -190,14 +190,6 @@ class RabbitMQ():
         self.logger.error(f"Failed to publish message: {str(e)}")
         raise RabbitMQError(f"Publishing error: {str(e)}")
 
-      self._channel.basic_publish(
-          exchange=self._exchange,
-          routing_key=self._queue_name,
-          body=json.dumps(message),
-          properties=properties
-      )
-      print(f"Sent message: {message}")
-
   def get_message(self, auto_ack: bool = False) -> Optional[Dict]:
       """
       Get a single message from the queue
@@ -293,6 +285,8 @@ class RabbitMQ():
         if self.connection and not self.connection.is_closed:
             self.connection.close()
             self.logger.info("Connection closed successfully")
+        else:
+            self.logger.info("Connection already closed")
     except Exception as e:
         print(f"Error: {e}")
         raise e
