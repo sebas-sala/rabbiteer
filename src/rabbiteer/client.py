@@ -67,7 +67,7 @@ class RabbitMQ():
       connection_type: ConnectionType = ConnectionType.BLOCKING,
       virtual_host: str = '/',
       log_level: int = logging.INFO,
-      retry_delay: int = 5
+      retry_delay: float = 5.0
     ):
     self._host = host
     self._user = user
@@ -126,7 +126,6 @@ class RabbitMQ():
         connection_attempts=self._connection_attempts,
         retry_delay=self._retry_delay,
         virtual_host=self._virtual_host,
-        connection_timeout=self._connection_timeout,
       )
 
       if self._connection_type == ConnectionType.BLOCKING:
@@ -135,11 +134,11 @@ class RabbitMQ():
         self.connection = SelectConnection(params)
       else:
         raise RabbitMQError("Unsupported connection type")
-
+      
       self._channel = self.connection.channel()
     except pika.exceptions.AMQPConnectionError as e:
-      print(f"Error: {e}")
-      raise e
+        self.logger.error(f"Failed to create channel: {str(e)}")
+        raise RabbitMQError(f"Channel creation error: {str(e)}")    
     
   def create_queue(self, queue_arguments: Optional[Dict] = None, durable: bool = True):
       """
