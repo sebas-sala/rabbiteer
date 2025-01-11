@@ -3,10 +3,15 @@ import pika
 import pika.exceptions
 from pika.exchange_type import ExchangeType
 from pika.spec import BasicProperties
+from pika import BlockingConnection, SelectConnection
 import logging
 from functools import wraps
 import time
-from typing import Dict, Optional, Any, Callable
+from typing import Dict, Optional, Any, Callable, Enum
+
+class ConnectionType(Enum):
+    BLOCKING = "blocking"
+    SELECT = "select"
 
 class RabbitMQError(Exception):
     pass
@@ -38,11 +43,14 @@ class RabbitMQ():
         host (str): RabbitMQ server host
         user (str): RabbitMQ username
         password (str): RabbitMQ password
-        queue_name (str): Default queue name
-        exchange (str): Default exchange name
-        exchange_type (ExchangeType): Type of exchange (direct, fanout, topic, headers)
-        prefetch_count (int): Number of messages to prefetch
-        logger (logging.Logger): Logger instance
+        queue_name (str): Queue name
+        exchange (str): Exchange name
+        exchange_type (ExchangeType): Exchange type
+        connection_timeout (int): Connection timeout
+        connection_attempts (int): Connection attempts
+        connection_type (str): Connection type (blocking or select)
+        virtual_host (str): Virtual host
+        log_level (int): Log level
     """
 
   def __init__(
@@ -55,8 +63,10 @@ class RabbitMQ():
       exchange_type: ExchangeType = ExchangeType.direct,
       connection_timeout: int = 10,
       connection_attempts: int = 10,
+      connection_type: ConnectionType = ConnectionType.BLOCKING,
       virtual_host: str = '/',
-      log_level: int = logging.INFO
+      log_level: int = logging.INFO,
+      retry_delay: int = 5
     ):
     self._host = host
     self._user = user
@@ -67,6 +77,8 @@ class RabbitMQ():
     self._connection_timeout = connection_timeout
     self._connection_attempts = connection_attempts
     self._virtual_host = virtual_host
+    self._connection_type = connection_type
+    self._retry_delay = retry_delay
 
     self.logger = logging.getLogger(__name__)
     self.logger.setLevel(log_level)
@@ -83,14 +95,20 @@ class RabbitMQ():
         self.create_exchange()
       self.create_queue()
 
-  def create_exchange(self):
-      """Declare exchange with specified parameters"""
+  def create_exchange(self, durable: bool = True, auto_delete: bool = False):
+      """Declare exchange with specified parameters
+
+        Args:   
+            durable: Whether exchange is durable
+            auto_delete: Whether exchange is auto-deleted
+      """
+
       try:
           self._channel.exchange_declare(
               exchange=self._exchange,
               exchange_type=self._exchange_type.value,
-              durable=True,
-              auto_delete=False
+              durable=durable,
+              auto_delete=auto_delete
           )
           self.logger.info(f"Exchange '{self._exchange}' declared successfully")
       except Exception as e:
@@ -98,32 +116,42 @@ class RabbitMQ():
           raise RabbitMQError(f"Exchange declaration error: {str(e)}")
 
   def create_channel(self):
+    """Create a new channel and connection to the RabbitMQ server"""
     try: 
       credentials = pika.PlainCredentials(self._user, self._password)
       params = pika.ConnectionParameters(
         host=self._host, 
         credentials=credentials,
-        connection_attempts=10,
-        retry_delay=5
+        connection_attempts=self._connection_attempts,
+        retry_delay=self._retry_delay,
+        virtual_host=self._virtual_host,
+        connection_timeout=self._connection_timeout,
       )
 
-      self.connection = pika.BlockingConnection(params)
+      if self._connection_type == ConnectionType.BLOCKING:
+        self.connection = BlockingConnection(params)
+      elif self._connection_type == ConnectionType.SELECT:
+        self.connection = SelectConnection(params)
+      else:
+        raise RabbitMQError("Unsupported connection type")
+
       self._channel = self.connection.channel()
     except pika.exceptions.AMQPConnectionError as e:
       print(f"Error: {e}")
       raise e
     
-  def create_queue(self, queue_arguments: Optional[Dict] = None):
+  def create_queue(self, queue_arguments: Optional[Dict] = None, durable: bool = True):
       """
       Declare queue with specified parameters
       
       Args:
+          durable: Whether queue is durable
           queue_arguments: Optional arguments for queue declaration (e.g., message TTL)
       """
       try:
           self._channel.queue_declare(
               queue=self._queue_name,
-              durable=True,
+              durable=durable,
               arguments=queue_arguments
           )
           if self._exchange:
@@ -136,20 +164,6 @@ class RabbitMQ():
       except Exception as e:
           self.logger.error(f"Failed to declare queue: {str(e)}")
           raise RabbitMQError(f"Queue declaration error: {str(e)}")
-
-  def create_exchange(self):
-      """Declare exchange with specified parameters"""
-      try:
-          self._channel.exchange_declare(
-              exchange=self._exchange,
-              exchange_type=self._exchange_type.value,
-              durable=True,
-              auto_delete=False
-          )
-          self.logger.info(f"Exchange '{self._exchange}' declared successfully")
-      except Exception as e:
-          self.logger.error(f"Failed to declare exchange: {str(e)}")
-          raise RabbitMQError(f"Exchange declaration error: {str(e)}")
   
   @retry_operation(max_attempts=5, delay=2)
   def publish(
