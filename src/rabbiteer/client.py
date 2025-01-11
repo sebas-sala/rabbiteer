@@ -7,7 +7,8 @@ from pika import BlockingConnection, SelectConnection
 import logging
 from functools import wraps
 import time
-from typing import Dict, Optional, Any, Callable, Enum
+from typing import Dict, Optional, Any, Callable
+from enum import Enum
 
 class ConnectionType(Enum):
     BLOCKING = "blocking"
