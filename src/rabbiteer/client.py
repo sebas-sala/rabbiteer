@@ -56,7 +56,7 @@ class RabbitMQ():
       connection_timeout: int = 10,
       connection_attempts: int = 10,
       virtual_host: str = '/',
-      log_level: int = logging.info
+      log_level: int = logging.INFO
     ):
     self._host = host
     self._user = user
