@@ -10,7 +10,7 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 [project]
 name = "rabbiteer"
-version = "0.1.6"
+version = "0.1.7"
 authors = [
   { name = "Sebastian Sala", email = "sebastian.sala.alanis@hotmail.com" },
 ]

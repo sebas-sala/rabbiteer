@@ -26,7 +26,7 @@ class Parameters(object):
     DEFAULT_USERNAME = 'guest'
     DEFAULT_PASSWORD = 'guest'
 
-    DEFAULT_EXCHANGE = None
+    DEFAULT_EXCHANGE = ""
     DEFAULT_EXCHANGE_TYPE = ExchangeType.direct
 
     DEFAULT_LOG_LEVEL = logging.INFO
@@ -378,6 +378,14 @@ class RabbitMQ(Parameters):
                 consumer_tag: Optional consumer tag
         """
         try: 
+            if not self._channel:
+                self.logger.error("Channel not created")
+                return
+        
+            if self._channel.is_closed:
+                self.logger.error("Channel is closed")
+                return
+
             def wrapped_callback(ch, method, properties, body):
                 try:
                     decoded_message = json.loads(body)
