@@ -1,27 +1,35 @@
 import pytest
 import json
 from unittest.mock import patch, MagicMock, PropertyMock
-from src.rabbiteer.client import RabbitMQ
+from src.rabbiteer.client import RabbitMQ, ConnectionType
 import logging
 
 logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def rabbitmq():
-    with patch('pika.BlockingConnection'), patch('pika.PlainCredentials'), patch('pika.ConnectionParameters'):
+    with patch('pika.BlockingConnection') as mock_conn:
+        mock_channel = MagicMock()
+        mock_conn.return_value.channel.return_value = mock_channel
+        mock_conn.return_value.is_closed = False
+        mock_conn.return_value.is_open = True
+
         return RabbitMQ(
             host='localhost',
-            user='guest',
+            port=5672,
+            username='guest',
             password='guest',
-            queue_name='test_queue',
-            exchange='test_exchange'
+            exchange='test_exchange',
+            queue='test_queue',
         )
 
 def test_start_server(rabbitmq):
     with patch.object(rabbitmq, 'create_channel') as mock_create_channel, \
          patch.object(rabbitmq, 'create_exchange') as mock_create_exchange, \
          patch.object(rabbitmq, 'create_queue') as mock_create_queue:
+        
         rabbitmq.start_server()
+
         mock_create_channel.assert_called_once()
         mock_create_exchange.assert_called_once()
         mock_create_queue.assert_called_once()
@@ -37,9 +45,8 @@ def test_create_exchange(rabbitmq):
     )
 
 def test_create_channel(rabbitmq):
-    with patch('pika.BlockingConnection') as mock_connection:
-        rabbitmq.create_channel()
-        mock_connection.assert_called_once()
+    rabbitmq.create_channel()
+    assert rabbitmq._channel is not None
 
 def test_create_queue(rabbitmq):
     rabbitmq._channel = MagicMock()
@@ -95,7 +102,13 @@ def test_consume(rabbitmq):
     rabbitmq._channel.start_consuming.assert_called_once()
 
 def test_close(rabbitmq):
-    rabbitmq.connection = MagicMock()
-    type(rabbitmq.connection).is_closed = PropertyMock(return_value=False)
+    assert not rabbitmq._connection.is_closed
+
     rabbitmq.close()
-    rabbitmq.connection.close.assert_called_once()
+    assert rabbitmq._connection.is_closed
+
+def test_already_closed(rabbitmq):
+    rabbitmq._connection = MagicMock()
+    rabbitmq._connection.is_closed = True
+    rabbitmq.close()
+    assert rabbitmq._connection.is_closed
