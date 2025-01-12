@@ -236,8 +236,8 @@ class RabbitMQ(Parameters):
             if self._connection_type == ConnectionType.BLOCKING:
                 self._connection = BlockingConnection(params)
             elif self._connection_type == ConnectionType.SELECT:
-                self._connection = BlockingConnection(params)
-                # self._connection.ioloop.start()
+                self._connection = SelectConnection(params)
+                self._connection.ioloop.start()
             else:
                 raise RabbitMQError("Unsupported connection type")    
             
