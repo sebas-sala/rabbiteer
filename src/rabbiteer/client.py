@@ -50,6 +50,7 @@ class Parameters(object):
     DEFAULT_SSL_PORT = 5671
     DEFAULT_VIRTUAL_HOST = '/'
     DEFAULT_TCP_OPTIONS = None
+    DEFAULT_START_SERVER = True
 
     def __init__(self):
         self._blocked_connection_timeout = self.DEFAULT_BLOCKED_CONNECTION_TIMEOUT
@@ -131,6 +132,7 @@ class RabbitMQ(Parameters):
         socket_timeout: float = _DEFAULT,
         stack_timeout: float = _DEFAULT,
         tcp_options: Optional[Dict] = _DEFAULT,
+        start_server: bool = _DEFAULT,
         **kwargs: Any
     ):
         super(RabbitMQ, self).__init__()
@@ -157,6 +159,7 @@ class RabbitMQ(Parameters):
         self._socket_timeout = socket_timeout if socket_timeout is not self._DEFAULT else self.DEFAULT_SOCKET_TIMEOUT
         self._stack_timeout = stack_timeout if stack_timeout is not self._DEFAULT else self.DEFAULT_STACK_TIMEOUT
         self._tcp_options = tcp_options if tcp_options is not self._DEFAULT else self.DEFAULT_TCP_OPTIONS
+        self._start_server = start_server if start_server is not self._DEFAULT else self.DEFAULT_START_SERVER
 
         if kwargs:
             raise TypeError('unexpected kwargs: %r' % (kwargs,))
@@ -166,7 +169,9 @@ class RabbitMQ(Parameters):
         
         self._connection = None
         self._channel = None
-        self.start_server()
+
+        if self._start_server:
+            self.start_server()
     
     @retry(tries=5, delay=2)
     def start_server(self):
